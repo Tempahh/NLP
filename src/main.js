@@ -1,35 +1,33 @@
-import { Client, Users } from 'node-appwrite';
+import AppwriteService from './appwrite.js';
+import { HfInference } from '@huggingface/inference';
 
-// This Appwrite function will be executed every time your function is triggered
+
+// Initialize Appwrite service
+const appwrite = new AppwriteService();
+
 export default async ({ req, res, log, error }) => {
-  // You can use the Appwrite SDK to interact with other services
-  // For this example, we're using the Users service
-  const client = new Client()
-    .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
-    .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
-    .setKey(req.headers['x-appwrite-key'] ?? '');
-  const users = new Users(client);
+  const hf = new HfInference(process.env.HUGGING_FACE_API_KEY);
+  const databaseId = process.env.APPWRITE_DATABASE_ID ?? 'ai';
+  const collectionId = process.env.APPWRITE_COLLECTION_ID ?? 'image_classification';
+  const bucketId = process.env.APPWRITE_BUCKET_ID ?? 'image_classification';
+
+  // Allows using direct execution or file create event
+  const fileId = req.body.$id || req.body.imageId;
+  if (!fileId) return res.text('Bad request', 400);
+
+  if ( req.body.bucketId && req.body.bucketId != bucketId) return res.text('Bad request', 400);
 
   try {
-    const response = await users.list();
-    // Log messages and errors to the Appwrite Console
-    // These logs won't be seen by your end users
-    log(`Total users: ${response.total}`);
-  } catch(err) {
-    error("Could not list users: " + err.message);
+  // Get file from Appwrite storage
+    const file = await appwrite.getFile(bucketId, fileId);
+
+    const result = await hf.objectDetection({ data: file, model: 'facebook/detr-resnet-50' });
+  } catch (e) {
+    return res.text('File not found', 404);
   }
 
-  // The req object contains the request data
-  if (req.path === "/ping") {
-    // Use res object to respond with text(), json(), or binary()
-    // Don't forget to return a response!
-    return res.text("Pong");
-  }
+  const imageLabel = await appwrite.createImageLabels(databaseId, collectionId, fileId, result);
 
-  return res.json({
-    motto: "Build like a team of hundreds_",
-    learn: "https://appwrite.io/docs",
-    connect: "https://appwrite.io/discord",
-    getInspired: "https://builtwith.appwrite.io",
-  });
-};
+  log('Image ' + fileId + ' detected', result);
+  return res.json(result);
+}
