@@ -3,7 +3,7 @@ import { HfInference } from '@huggingface/inference';
 
 
 export default async ({ req, res, log, error }) => {
-  const hf = new HfInference(process.env.HUGGING_FACE_API_KEY);
+  const hf = new HfInference(process.env.HUGGINFACE_ACCESS_TOKEN);
   const databaseId = process.env.APPWRITE_DATABASE_ID ?? '67486793003703b3bac7';
   const collectionId = process.env.APPWRITE_COLLECTION_ID ?? '674867b000385dc5ae5b';
   const bucketId = process.env.APPWRITE_BUCKET_ID ?? 'imageRecognition';
